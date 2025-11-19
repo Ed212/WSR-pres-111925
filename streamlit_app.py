@@ -1,312 +1,271 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 
-# =========================
-# PAGE CONFIG
-# =========================
 st.set_page_config(
-    page_title="WSR Attribution Story",
+    page_title="WSR Attribution Test — Exec View",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# =========================
-# SIDEBAR – FILE UPLOADS
-# =========================
-st.sidebar.header("Upload Dataset Files")
+# -------------------------------
+# DATA LOADERS
+# -------------------------------
 
-file_feb_nov = st.sidebar.file_uploader(
-    "Top Sellers – Feb–Nov 2025",
-    type=["csv", "xlsx"]
-)
+@st.cache_data
+def load_excel(path):
+    return pd.read_excel(path, sheet_name=0)
 
-file_oct_nov = st.sidebar.file_uploader(
-    "Top Sellers – Oct–Nov 2025",
-    type=["csv", "xlsx"]
-)
+@st.cache_data
+def load_csv(path):
+    try:
+        return pd.read_csv(path)
+    except:
+        return pd.read_csv(path, encoding="latin1")
 
-SELLER_COL = "slr_org_nm"
-GMV_COL = "GMV"
-CLICKS_COL = "Clicks"
+df_feb = load_excel("data/Top Sellers-Feb-November-25.xlsx")
+df_oct = load_csv("data/Top Sellers-Oct-Nov-25.csv")
 
-def load_df(f):
-<<<<<<< HEAD
-    if f.lower().endswith(".xlsx"):
-        # First sheet, whatever its name is
-        return pd.read_excel(f, sheet_name=0)
-    elif f.lower().endswith(".csv"):
-        # Try UTF-8 first, then fall back to latin1 if needed
-        try:
-            return pd.read_csv(f)
-        except UnicodeDecodeError:
-            return pd.read_csv(f, encoding="latin1")
-    else:
-        raise ValueError(f"Unsupported file type for: {f}")
-=======
-    if f is None:
-        return None
-    if f.name.endswith(".csv"):
-        return pd.read_csv(f, encoding = "latin1")
-    return pd.read_excel(f, sheet_name="sheet 1")
->>>>>>> parent of 51d63c8 (3rd Commit)
+# Normalize column names
+df_feb.columns = df_feb.columns.str.lower()
+df_oct.columns = df_oct.columns.str.lower()
 
-df_feb = load_df(file_feb_nov)
-df_oct = load_df(file_oct_nov)
+df_feb["gmv"] = df_feb["gmv"].astype(float)
+df_oct["gmv"] = df_oct["gmv"].astype(float)
 
-# =========================
-# METRICS
-# =========================
-GMV_YTD = 6_500_000
-BUYERS_YTD = 200_000
-NOV_GMV = 920_000
-NOV_PAYOUT = 50_000
-NOV_ROI = NOV_GMV / NOV_PAYOUT
-
-ATTRITION_LOSS = 2_450_000
-ACTIVE_DELTA_LOSS = 1_650_000
-TOTAL_DRAG = ATTRITION_LOSS + ACTIVE_DELTA_LOSS
-
-# =========================
+# -------------------------------
 # HELPERS
-# =========================
+# -------------------------------
 
-def compute_attrition(df_feb, df_oct):
-    feb = df_feb.groupby(SELLER_COL)[GMV_COL].sum().reset_index()
-    octt = df_oct.groupby(SELLER_COL)[GMV_COL].sum().reset_index()
+def walmart_header(title, subtitle=None):
+    st.markdown(f"""
+        <div style='padding: 12px 0;'>
+            <h1 style='color:#0071CE; margin-bottom:0;'>{title}</h1>
+            {f"<p style='font-size:18px; color:#4D4D4D;'>{subtitle}</p>" if subtitle else ""}
+            <hr style='margin-top:6px; margin-bottom:18px; border: 1px solid #E6E6E6;'/>
+        </div>
+    """, unsafe_allow_html=True)
 
-    merged = feb.merge(octt, on=SELLER_COL, how="left", suffixes=("_feb", "_oct"))
-    merged["GMV_oct"] = merged["GMV_oct"].fillna(0)
 
-    lost = merged[merged["GMV_oct"] == 0]
-    return merged, lost, lost["GMV_feb"].sum()
+# =============================================================
+# TAB LAYOUT — ONE TAB PER SLIDE
+# =============================================================
 
-def compute_eff(df):
-    df2 = df.copy()
-    df2["gmv_per_click"] = df2[GMV_COL] / df2[CLICKS_COL].replace({0: np.nan})
-    df2["flag"] = np.where(df2["gmv_per_click"] < 7, "High Clicks, Low GMV",
-                  np.where(df2["gmv_per_click"] > 50, "Low Clicks, High GMV", "Normal"))
-    return df2
+tabs = st.tabs([
+    "1. Title",
+    "2. TL;DR",
+    "3. Attrition Problem",
+    "4. Efficiency Issues",
+    "5. GMV Delta",
+    "6. Strategic Importance",
+    "7. FY27 Test Program",
+    "8. Leadership Decision"
+])
 
-def compute_delta(df_feb, df_oct):
-    feb = df_feb.groupby(SELLER_COL)[GMV_COL].sum().reset_index()
-    octt = df_oct.groupby(SELLER_COL)[GMV_COL].sum().reset_index()
+# =============================================================
+# SLIDE 1 — TITLE
+# =============================================================
+with tabs[0]:
+    walmart_header("Walmart Sales Rewards (WSR)", "FY27 Attribution Test Program")
 
-    merged = feb.merge(octt, on=SELLER_COL, how="inner", suffixes=("_feb","_oct"))
-    merged["gmv_change"] = merged["GMV_oct"] - merged["GMV_feb"]
-    merged["pct"] = merged["gmv_change"] / merged["GMV_feb"]
-    total_change = merged["gmv_change"].sum()
-    return merged, total_change
+    st.markdown("""
+    ### Objective  
+    Align leadership on investing in a cross-provider attribution modernization program to restore seller confidence, recover suppressed GMV, and unlock a +$1B performance channel.
+    """)
 
-# =========================
-# TABS
-# =========================
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Walmart_logo.svg/2560px-Walmart_logo.svg.png", width=280)
 
-tab_tldr, tab_attrition, tab_eff, tab_delta, tab_decision = st.tabs(
-    ["📌 TL;DR", "❌ Attrition", "⚡ Efficiency", "📉 GMV Delta", "🧭 Leadership Decision"]
-)
 
-# ======================================================
-# TAB 1 — TL;DR
-# ======================================================
-with tab_tldr:
-    st.title("📌 TL;DR — WSR Attribution Story")
-    st.subheader("WSR is working too well for us to remain blind.")
+# =============================================================
+# SLIDE 2 — TL;DR
+# =============================================================
+with tabs[1]:
+    walmart_header("TL;DR — Why Now")
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("WSR GMV YTD", f"${GMV_YTD:,.0f}")
-    c2.metric("Incremental Buyers YTD", f"{BUYERS_YTD:,.0f}")
-    c3.metric("November GMV", f"${NOV_GMV:,.0f}")
-    c4.metric("ROI in November", f"{NOV_ROI:,.1f}×")
+    col1, col2 = st.columns([0.55, 0.45])
 
-    st.markdown(
-        f"""
-### 🚨 Attribution is now the #1 blocker to scaling a $1B+ program  
-Across the top-seller dataset:
+    with col1:
+        st.markdown("""
+        ### WSR is working — too well for us to remain blind  
+        - **YTD GMV:** ~$6.5M  
+        - **Incremental buyers:** ~200,000  
+        - **ROI:** ~18× (e.g., $920K GMV in November vs $50K payouts)  
+        - **Traffic quality:** High-intent (Google Ads, Meta) — more like **Amazon Brand Referral Bonus (~$10B)** than affiliates  
 
-- **$2.45M** GMV lost from churn  
-- **$1.65M** GMV decline among active sellers  
-- **≈ $4.1M GMV drag** in this cohort alone  
+        ### The problem  
+        - Sellers & solution providers **cannot reconcile WSR attribution**
+        - Conversions undercounted  
+        - Clicks mismatched  
+        - Campaign effectiveness unclear  
 
-These losses are driven not by demand — **but by measurement failure**.
-"""
-    )
+        ### The ask  
+        **Fund a FY27 attribution test program** to modernize measurement and unlock growth.
+        """)
 
-    st.info("Upload Feb–Nov & Oct–Nov datasets in the sidebar to enable all tabs.")
+    with col2:
+        # ROI donut chart
+        fig = go.Figure(go.Pie(
+            labels=["Payouts ($50K)", "GMV ($920K)"],
+            values=[50, 920],
+            hole=0.55,
+            marker_colors=["#FFC220", "#0071CE"]
+        ))
+        fig.update_layout(title="November ROI Snapshot", showlegend=True)
+        st.plotly_chart(fig, use_container_width=True)
 
-# ======================================================
-# TAB 2 — ATTRITION
-# ======================================================
-with tab_attrition:
-    st.title("❌ Seller Attrition — $2.45M GMV Lost")
-    if df_feb is None or df_oct is None:
-        st.warning("Upload files to view analysis.")
-        st.stop()
+# =============================================================
+# SLIDE 3 — ATTRITION
+# =============================================================
+with tabs[2]:
+    walmart_header("Attribution Problem: Seller Attrition → –$2.45M GMV Lost")
 
-    merged, lost_sellers, lost_gmv = compute_attrition(df_feb, df_oct)
+    st.markdown("""
+    ### What happened  
+    - **295** sellers in Feb–Nov dataset  
+    - **149** still active in Oct–Nov  
+    - **145** churned (GMV → 0)  
+    - **Lost GMV from churned sellers:** **$2.45M**  
 
-    c1, c2 = st.columns(2)
-    c1.metric("Total Sellers (Feb–Nov)", merged[SELLER_COL].nunique())
-    c2.metric("Lost Sellers (GMV → 0)", lost_sellers[SELLER_COL].nunique())
+    These are not small sellers — they are high-value contributors who disappeared when attribution could not be reconciled.
+    """)
 
-    st.metric("GMV Lost From Seller Attrition", f"${lost_gmv:,.0f}")
+    lost_sellers = df_feb.merge(df_oct, on="seller_id", how="left", suffixes=("_feb", "_oct"))
+    lost_sellers = lost_sellers[lost_sellers["gmv_oct"].isna()]
 
-    st.markdown("### Top Churned Sellers")
+    st.markdown("### Largest Churned Sellers")
     st.dataframe(
-        lost_sellers[[SELLER_COL, "GMV_feb"]]
-        .sort_values("GMV_feb", ascending=False)
-        .head(15)
-        .rename(columns={"GMV_feb": "GMV Feb–Nov"})
-    )
-
-    st.bar_chart(
-        lost_sellers.set_index(SELLER_COL)["GMV_feb"].sort_values(ascending=False).head(20)
-    )
-
-    st.markdown(
-        """
-**Examples from dataset:**
-
-- **XIUXIAN TRADE CO LTD** — $1.85M  
-- **shenzhenshixinmiaodianzi…** — $467K  
-- **pcplanet** — $41K  
-
-👉 These three alone represent **$2.36M of the $2.45M** churn loss.
-"""
-    )
-
-# ======================================================
-# TAB 3 — EFFICIENCY
-# ======================================================
-with tab_eff:
-    st.title("⚡ Efficiency Anomalies — Undercounted Conversions")
-
-    df_eff = compute_eff(df_feb)
-
-    high = df_eff[df_eff["flag"] == "High Clicks, Low GMV"]
-    low = df_eff[df_eff["flag"] == "Low Clicks, High GMV"]
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Sellers", df_eff[SELLER_COL].nunique())
-    c2.metric("High Clicks → Low GMV", high[SELLER_COL].nunique())
-    c3.metric("Low Clicks → High GMV", low[SELLER_COL].nunique())
-
-    st.subheader("🔴 High Clicks, Low GMV (Missing Conversions)")
-    st.table(
-        high[[SELLER_COL, CLICKS_COL, GMV_COL, "gmv_per_click"]]
-        .sort_values("gmv_per_click")
+        lost_sellers[["slr_org_nm_feb", "gmv_feb"]]
+        .sort_values(by="gmv_feb", ascending=False)
         .head(10)
     )
 
-    st.subheader("🟠 Low Clicks, High GMV (Missing Clicks)")
-    st.table(
-        low[[SELLER_COL, CLICKS_COL, GMV_COL, "gmv_per_click"]]
-        .sort_values("gmv_per_click", ascending=False)
-        .head(10)
+    fig = px.bar(
+        lost_sellers.sort_values("gmv_feb", ascending=False).head(10),
+        x="slr_org_nm_feb",
+        y="gmv_feb",
+        title="Top Churned Seller GMV (Lost)",
+        color_discrete_sequence=["#0071CE"]
     )
+    st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Scatter: Clicks vs GMV")
-    scatter_df = df_eff.copy()
-    scatter_df["color"] = scatter_df["flag"].map({
-        "High Clicks, Low GMV": "red",
-        "Low Clicks, High GMV": "orange",
-        "Normal": "blue"
-    })
-    st.scatter_chart(scatter_df, x=CLICKS_COL, y=GMV_COL, color="color")
+# =============================================================
+# SLIDE 4 — EFFICIENCY ISSUES
+# =============================================================
+with tabs[3]:
+    walmart_header("Attribution Problem: Efficiency Signals Show Misalignment")
 
-    st.markdown(
-        """
-**Interpretation:**
-- High clicks + low GMV → conversions happening but **not attributed**  
-- Low clicks + high GMV → conversions grouped incorrectly or **missing click IDs**  
+    st.markdown("""
+    ### Pattern A — High Clicks, Low GMV per Click  
+    Strong indicator that **conversions are missing**.
+    """)
 
-These patterns **cannot** be explained by shopper behavior.
+    pattern_a = df_feb[df_feb["gmv"]/df_feb["clicks"] < 3].nsmallest(10, "gmv")
+    pattern_a["gmv_per_click"] = pattern_a["gmv"] / pattern_a["clicks"]
 
-They point directly to **attribution plumbing failures**.
-"""
-    )
+    st.dataframe(pattern_a[["slr_org_nm", "clicks", "gmv", "gmv_per_click"]])
 
-# ======================================================
-# TAB 4 — GMV DELTA
-# ======================================================
-with tab_delta:
-    st.title("📉 GMV Delta Among Active Sellers — $1.65M Down")
+    st.markdown("### Pattern B — Low Clicks, High GMV per Click (missing click IDs)")
+    pattern_b = df_feb[df_feb["gmv"]/df_feb["clicks"] > 100].nlargest(10, "gmv")
+    pattern_b["gmv_per_click"] = pattern_b["gmv"] / pattern_b["clicks"]
 
-    delta_df, total_delta = compute_delta(df_feb, df_oct)
+    st.dataframe(pattern_b[["slr_org_nm", "clicks", "gmv", "gmv_per_click"]])
 
-    st.metric("Total GMV Decline (Active Sellers)", f"${total_delta:,.0f}")
+# =============================================================
+# SLIDE 5 — GMV DELTA
+# =============================================================
+with tabs[4]:
+    walmart_header("GMV Delta Among Active Sellers → –$1.65M")
 
-    st.subheader("Top Decliners")
+    merged = df_feb.merge(df_oct, on="seller_id", how="inner", suffixes=("_feb", "_oct"))
+    merged["gmv_change"] = merged["gmv_oct"] - merged["gmv_feb"]
+
+    st.markdown("### GMV Change Among Overlapping Sellers")
     st.dataframe(
-        delta_df
+        merged[["slr_org_nm_feb", "gmv_feb", "gmv_oct", "gmv_change"]]
         .sort_values("gmv_change")
-        .head(15)
-        [[SELLER_COL, "GMV_feb", "GMV_oct", "gmv_change", "pct"]]
+        .head(10)
     )
 
-    st.bar_chart(
-        delta_df.sort_values("gmv_change").head(20).set_index(SELLER_COL)["gmv_change"]
+    total_drag = merged["gmv_change"].sum()
+    st.metric("Total GMV Change (Feb–Nov → Oct–Nov)", f"{total_drag:,.0f}")
+
+    fig = px.bar(
+        merged.sort_values("gmv_change").head(20),
+        x="slr_org_nm_feb",
+        y="gmv_change",
+        title="Top 20 GMV Declines",
+        color="gmv_change",
+        color_continuous_scale="Bluered"
     )
+    st.plotly_chart(fig, use_container_width=True)
 
-    st.markdown(
-        """
-### What this shows
-Even sellers who *stayed active* saw:
+# =============================================================
+# SLIDE 6 — STRATEGIC IMPORTANCE
+# =============================================================
+with tabs[5]:
+    walmart_header("Why This Matters: WSR Can Scale to $1B+ If Attribution Is Fixed")
 
-- Abrupt GMV declines  
-- Drops far beyond seasonality  
-- Sharp pullbacks tied to **reporting mistrust**
+    st.markdown("""
+    ### WSR is structurally similar to Amazon Brand Referral Bonus
+    - Sellers use Google Ads, Meta, TikTok  
+    - They need transparent, multi-touch attribution  
+    - Amazon invests heavily in measurement → **$10B+ channel**  
 
-This is *lost opportunity*, not lost demand.
-"""
-    )
+    ### WSR’s measurement layer is affiliate-legacy  
+    - Short windows  
+    - Last-touch only  
+    - No cross-channel reconciliation  
+    - No first-touch / multi-touch visibility  
 
-# ======================================================
-# TAB 5 — LEADERSHIP DECISION
-# ======================================================
-with tab_decision:
-    st.title("🧭 Leadership Decision — Fund Attribution Testing in FY27")
+    ### Fixing attribution = unlocking the flywheel
+    - Better trust  
+    - More seller spend  
+    - More solution provider adoption  
+    - More GMV  
+    """)
 
-    c1, c2 = st.columns(2)
-    c1.metric("GMV Lost From Churn", f"${ATTRITION_LOSS:,.0f}")
-    c2.metric("GMV Lost From Active Sellers", f"${ACTIVE_DELTA_LOSS:,.0f}")
+# =============================================================
+# SLIDE 7 — TEST PROGRAM
+# =============================================================
+with tabs[6]:
+    walmart_header("FY27 Attribution Test Program (Proposed)")
 
-    st.metric("Total GMV Drag Identified", f"${TOTAL_DRAG:,.0f}")
+    st.markdown("""
+    ### Test 1 — First-Touch vs Last-Touch (Google + Meta)
+    - Quantify conversion undercounting  
+    - Validate new multi-touch model  
+    - Build transparent rule set  
 
-    st.markdown(
-        """
-## Why This Matters
-WSR behaves like **Amazon Attribution / Brand Referral Bonus**, but our measurement stack still behaves like an **affiliate network**.
+    ### Test 2 — WSR vs Amazon Brand Referral Bonus
+    - Match creatives, budget, targeting  
+    - Compare true incremental ROI  
+    - Identify gaps in attribution design  
 
-Attribution is not a reporting feature —  
-**it is the gating factor for WSR’s $1B+ potential.**
+    ### Output  
+    - Clear attribution model (windows, touch rules)  
+    - Better reporting for sellers & partners  
+    - Foundation for API-grade measurement  
+    """)
 
----
+# =============================================================
+# SLIDE 8 — DECISION
+# =============================================================
+with tabs[7]:
+    walmart_header("Leadership Decision Required")
 
-## **Decision Needed**
-### ✔ Do we allocate dedicated FY27 budget to run structured attribution tests?
+    st.markdown("""
+    ## Do we allocate FY27 budget to run the attribution modernization tests?
 
-If **YES**, we will run:
+    ### What approval unlocks:
+    - Run cross-channel tests (Google, Meta, Amazon baseline)
+    - Build measurement sandbox + test accounts
+    - Update attribution rules
+    - Deliver FY27 roadmap for attribution + WSR API
 
----
+    ### Potential FY27 GMV Unlock  
+    **+$8–$12M incremental GMV** → pathway to **$1B+** over time.
+    """)
 
-### **Test 1 — First Touch vs Last Touch (Google + Meta)**
-- Quantifies under-attribution  
-- Defines a seller-readable, transparent rule set  
-
----
-
-### **Test 2 — WSR vs Amazon Brand Referral A/B**
-- Direct like-for-like comparison  
-- Shows the true ROI delta  
-- Identifies gaps in our attribution model  
-
----
-
-## Outcome
-- Restored seller trust  
-- Reduced GMV drag  
-- Measurement-grade foundation for a $1B+ WSR program  
-"""
-    )
+    st.success("Awaiting leadership decision.")
 
