@@ -31,6 +31,7 @@ GMV_COL = "GMV"
 CLICKS_COL = "Clicks"
 
 def load_df(f):
+<<<<<<< HEAD
     if f.lower().endswith(".xlsx"):
         # First sheet, whatever its name is
         return pd.read_excel(f, sheet_name=0)
@@ -42,6 +43,13 @@ def load_df(f):
             return pd.read_csv(f, encoding="latin1")
     else:
         raise ValueError(f"Unsupported file type for: {f}")
+=======
+    if f is None:
+        return None
+    if f.name.endswith(".csv"):
+        return pd.read_csv(f, encoding = "latin1")
+    return pd.read_excel(f, sheet_name="sheet 1")
+>>>>>>> parent of 51d63c8 (3rd Commit)
 
 df_feb = load_df(file_feb_nov)
 df_oct = load_df(file_oct_nov)
