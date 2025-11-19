@@ -39,17 +39,44 @@ def load_csv(path: str) -> pd.DataFrame:
             engine="python",
             on_bad_lines="skip"
         )
+#helper function 
+def prepare_df(df: pd.DataFrame, label: str) -> pd.DataFrame:
+    # Show columns in the UI (helps debugging)
+    st.write(f"📄 Columns in {label} file:", list(df.columns))
+
+    # Normalize column names
+    df.columns = df.columns.str.strip().str.lower()
+
+    # Try to detect the GMV column by name
+    possible_gmv_keys = ["gmv", "total_gmv", "gmv_usd", "gross_merc", "grossmerchandise"]
+    gmv_col = None
+    for col in df.columns:
+        if any(key in col for key in possible_gmv_keys):
+            gmv_col = col
+            break
+
+    if gmv_col is None:
+        st.error(f"❌ No GMV-like column found in {label} file. Available columns: {list(df.columns)}")
+        # Create an empty GMV column so the rest of the app doesn't crash
+        df["gmv"] = 0.0
+    else:
+        st.success(f"✅ Using '{gmv_col}' as GMV column for {label}.")
+        df["gmv"] = pd.to_numeric(df[gmv_col], errors="coerce")
+
+    return df
 
 df_feb = load_excel("data/Top Sellers-Feb-November-25.xlsx")
 st.write("Columns in Feb–Nov file:", df_feb.columns.tolist())
 df_oct = load_csv("data/Top Sellers-Oct-Nov-25.csv")
 
+
+df_feb = prepare_df(df_feb, "Feb–Nov")
+df_oct = prepare_df(df_oct, "Oct–Nov")
+
 # Normalize column names
 df_feb.columns = df_feb.columns.str.lower()
 df_oct.columns = df_oct.columns.str.lower()
 
-df_feb["gmv"] = df_feb["gmv"].astype(float)
-df_oct["gmv"] = df_oct["gmv"].astype(float)
 
 # -------------------------------
 # HELPERS
