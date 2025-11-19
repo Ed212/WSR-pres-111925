@@ -66,6 +66,25 @@ def prepare_df(df: pd.DataFrame, label: str) -> pd.DataFrame:
 
     return df
 
+# After df_feb and df_oct are loaded
+RENAME_MAP = {
+    "slr_id": "seller_id",
+    "slr_org_nm": "seller_name",
+    "total_gmv": "gmv",
+    "gmv_3p": "gmv_3p",
+    "gmv_1p": "gmv_1p",
+    "total_clicks": "clicks",
+}
+
+def normalize_cols(df):
+    # strip whitespace, lower, standardize
+    df.columns = df.columns.str.strip()
+    df.rename(
+        columns={col: RENAME_MAP.get(col, col) for col in df.columns},
+        inplace=True,
+    )
+    return df
+
 df_feb = load_excel("data/Top Sellers-Feb-November-25.xlsx")
 st.write("Columns in Feb–Nov file:", df_feb.columns.tolist())
 df_oct = load_csv("data/Top Sellers-Oct-Nov-25.csv")
@@ -73,6 +92,9 @@ df_oct = load_csv("data/Top Sellers-Oct-Nov-25.csv")
 
 df_feb = prepare_df(df_feb, "Feb–Nov")
 df_oct = prepare_df(df_oct, "Oct–Nov")
+
+df_feb = normalize_cols(df_feb)
+df_oct = normalize_cols(df_oct)
 
 # Normalize column names
 df_feb.columns = df_feb.columns.str.lower()
