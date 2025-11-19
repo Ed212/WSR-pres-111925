@@ -35,9 +35,10 @@ def load_csv(path: str) -> pd.DataFrame:
     except UnicodeDecodeError:
         return pd.read_csv(
             path,
-            encoding="latin1",
+            encoding="utf-16",
             engine="python",
-            on_bad_lines="skip"
+            on_bad_lines="skip",
+            sep="\t"
         )
 #helper function 
 def prepare_df(df: pd.DataFrame, label: str) -> pd.DataFrame:
