@@ -41,6 +41,7 @@ def load_csv(path: str) -> pd.DataFrame:
         )
 
 df_feb = load_excel("data/Top Sellers-Feb-November-25.xlsx")
+st.write("Columns in Feb–Nov file:", df_feb.columns.tolist())
 df_oct = load_csv("data/Top Sellers-Oct-Nov-25.csv")
 
 # Normalize column names
