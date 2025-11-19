@@ -18,11 +18,27 @@ def load_excel(path):
     return pd.read_excel(path, sheet_name=0)
 
 @st.cache_data
-def load_csv(path):
+def load_csv(path: str) -> pd.DataFrame:
+    """
+    Robust CSV loader for Streamlit Cloud.
+    - Tries UTF-8 first
+    - Falls back to latin1
+    - Ignores bad lines instead of crashing
+    """
     try:
-        return pd.read_csv(path)
-    except:
-        return pd.read_csv(path, encoding="latin1")
+        return pd.read_csv(
+            path,
+            encoding="utf-8",
+            engine="python",
+            on_bad_lines="skip"
+        )
+    except UnicodeDecodeError:
+        return pd.read_csv(
+            path,
+            encoding="latin1",
+            engine="python",
+            on_bad_lines="skip"
+        )
 
 df_feb = load_excel("data/Top Sellers-Feb-November-25.xlsx")
 df_oct = load_csv("data/Top Sellers-Oct-Nov-25.csv")
