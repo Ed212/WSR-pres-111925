@@ -31,11 +31,17 @@ GMV_COL = "GMV"
 CLICKS_COL = "Clicks"
 
 def load_df(f):
-    if f is None:
-        return None
-    if f.name.endswith(".csv"):
-        return pd.read_csv(f)
-    return pd.read_excel(f, sheet_name=0)
+    if f.lower().endswith(".xlsx"):
+        # First sheet, whatever its name is
+        return pd.read_excel(f, sheet_name=0)
+    elif f.lower().endswith(".csv"):
+        # Try UTF-8 first, then fall back to latin1 if needed
+        try:
+            return pd.read_csv(f)
+        except UnicodeDecodeError:
+            return pd.read_csv(f, encoding="latin1")
+    else:
+        raise ValueError(f"Unsupported file type for: {f}")
 
 df_feb = load_df(file_feb_nov)
 df_oct = load_df(file_oct_nov)
