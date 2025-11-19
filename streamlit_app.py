@@ -35,7 +35,7 @@ def load_df(f):
         return None
     if f.name.endswith(".csv"):
         return pd.read_csv(f)
-    return pd.read_excel(f, sheet_name="sheet 1")
+    return pd.read_excel(f, sheet_name=0)
 
 df_feb = load_df(file_feb_nov)
 df_oct = load_df(file_oct_nov)
